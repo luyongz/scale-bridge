@@ -1,7 +1,7 @@
 {
   "name": "scale-bridge",
   "version": "1.0.0",
-  "description": "称重串口桥接：串口 → WebSocket 推重量，HTTP 控制面热 reload",
+  "description": "称重串口桥接：启动自拉 WMS 配置，串口 → WebSocket 推重量；HTTP 控制面兼容 reload",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

@@ -1,0 +1,15 @@
+{
+  "wsHost": "127.0.0.1",
+  "wsPort": 5122,
+  "controlHost": "127.0.0.1",
+  "controlPort": 5123,
+  "wmsProfileUrl": "",
+  "wmsProfileMethod": "GET",
+  "wmsMacQueryParam": "mac",
+  "paths": {
+    "identity": "/identity",
+    "status": "/status",
+    "reload": "/reload",
+    "trialRead": "/trial-read"
+  }
+}

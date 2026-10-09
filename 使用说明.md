@@ -3,7 +3,8 @@
 ## 1. 这是什么
 
 本机程序：读电子秤串口 → 解析重量 → 通过 WebSocket 推给浏览器页面（如散盘装盒）。  
-**不负责** WMS 差异校验、登录、打印。串口参数由 **WMS 维护**，装箱页查询后 **reload 下发** 给本服务。
+**不负责** WMS 差异校验、登录、打印。串口参数由 **WMS 维护**；桥接启动时 **自行带本机 MAC 向 WMS 拉取配置** 并应用（页面无需再调 `/reload`）。  
+HTTP `/reload` 仍保留，仅作调试/兼容，前端可不依赖。
 
 ## 2. 怎么启动
 
@@ -32,9 +33,14 @@
 | 页面请求地址 / 端口（或完整 Base） | `controlHost` + `controlPort` | `127.0.0.1` / `5123` |
 | 查询网卡 / 状态 / 下发串口 / 试读重量路径 | `paths.*` | `/identity` 等 |
 | 网页接收重量地址 / 端口 | `wsHost` + `wsPort` | `127.0.0.1` / `5122` |
+| **向WMS查询秤配置的地址** | `wmsProfileUrl` | 空（空则不调 WMS，只用本地缓存） |
+| 向WMS查询的请求方法 | `wmsProfileMethod` | `GET` |
+| 传MAC的参数名 | `wmsMacQueryParam` | `mac` |
 
-点 **「保存并重启服务」**：写入同目录 `src/defaults.json` → 结束旧 node → 再拉起 → 状态刷新改用新 base/paths。  
+点 **「保存并重启服务」**：写入同目录 `src/defaults.json` → 结束旧 node → 再拉起（启动时会用本机 MAC 请求上述 WMS 地址）→ 状态刷新改用新 base/paths。  
 也可手改 `defaults.json` 后点该按钮，或退出再开 exe。
+
+**不做定时轮询刷新配置**；改 WMS 参数后需重启本服务（或临时手调 `/reload`）才会重新拉取。
 
 ---
 
@@ -91,12 +97,15 @@
 
 ---
 
-### 3.3 下发 / 热更新串口配置（核心）
+### 3.3 下发 / 热更新串口配置（可选兼容 / 调试）
+
+> **优先：** 在 `defaults.json` / 状态窗配置好 `wmsProfileUrl` 后，服务启动会自行向 WMS 拉配置，**页面可不调本接口**。  
+> 本接口保留便于调试、无 WMS 环境，或临时热更新。
 
 `POST http://127.0.0.1:5123/reload`  
 `Content-Type: application/json`
 
-**典型流程：** 页面 `getScaleBridgeProfileByMac`（WMS）→ 将返回的 `data` 映射为 Profile 后 POST 到本接口（见第 7 节字段映射）。
+**兼容流程：** 页面 `getScaleBridgeProfileByMac`（WMS）→ 将返回的 `data` 映射为 Profile 后 POST 到本接口（见第 7 节字段映射）。
 
 **Body 字段（Profile）：**
 
@@ -167,7 +176,7 @@
 
 **成功：** `{ "ok": true }`  
 
-**本地快照：** 每次成功 reload（含 `enabled:false` 关串口）会覆盖写入程序目录内的上次 Profile 快照；退出后再启动会自动按该快照等价 reload 恢复（读失败或 JSON 损坏则忽略，不影响启动）。
+**本地快照（`src/last-profile.json`）：** 每次成功应用配置（WMS 自拉或 `/reload`，含 `enabled:false`）会覆盖写入。启动时：**优先**请求 WMS；若未配置 `wmsProfileUrl`、或 WMS 拉取/应用失败，则回退该快照（读失败或 JSON 损坏则忽略，打日志/`lastError`，**不崩进程**）。
 
 **失败：** `{ "ok": false, "message": "缺少 portName" }`（HTTP 400）
 
@@ -215,23 +224,22 @@ ws.onmessage = (e) => {
 ## 4. 与 WMS / 装箱页怎么配合
 
 ```
-启动 电子秤服务.exe
+配置 wmsProfileUrl（状态窗或 defaults.json）并启动 电子秤服务.exe
     ↓
-页面 GET /identity → 得到 mac
+桥接枚举本机 MAC（selectedMac）
     ↓
-页面调 WMS getScaleBridgeProfileByMac(mac)
-    ↓
-页面 POST /reload（WMS 返回的配置，按第 7 节映射为 Profile）
-    ↓
+桥接 GET/POST wmsProfileUrl?mac=... → 解析 data / protocolJson → 内部 reload
+    ↓（失败则回退 last-profile.json，不崩）
 页面连 ws://127.0.0.1:5122 显示 electronicWeigh
     ↓
 业务仍走 checkSPZHWeight / weighCheck（与本服务无关）
 ```
 
-配置主数据在 WMS；装箱页经 **customizedScreenManager** 维护；桥接 **不直连** WMS。  
-WMS 里改了波特率等：页面再次查询并 `POST /reload`（或按 `version` 轮询，见第 7 节）。
+配置主数据在 WMS；装箱页经 **customizedScreenManager** 维护工位配置。  
+桥接通过可配的 **`wmsProfileUrl`** 调用与 `getScaleBridgeProfileByMac` 同形的 HTTP 接口（回参 `{status:0,data,message}`）。  
+**不轮询**；WMS 改参后重启本服务即可重新拉取。页面一般 **不必** 再 `POST /reload`。
 
-控制基址与路径可在状态窗或 `defaults.json` 修改；页面侧也建议可配。重量 WS 默认 `5122`，可改。
+控制基址、路径、WMS 地址可在状态窗或 `defaults.json` 修改。重量 WS 默认 `5122`，可改。
 
 ---
 
@@ -249,7 +257,8 @@ WMS 里改了波特率等：页面再次查询并 `POST /reload`（或按 `versi
 |------|------|
 | `电子秤服务.exe` | 状态窗 + 拉起服务（位于发布目录 `dist/ScaleBridge/`） |
 | `node.exe` / `src` / `node_modules` | 运行时，须与 exe 同目录 |
-| `src/defaults.json` | 默认端口与路径（状态窗可改并重启） |
+| `src/defaults.json` | 默认端口、路径、WMS 拉取地址等（状态窗可改并重启） |
+| `src/last-profile.json` | 上次成功配置的本地缓存（运行时生成；WMS 失败时回退） |
 | `使用说明.md` | 本说明 |
 | `docs/wms_scale_bridge_profile.sql` | WMS 表 DDL（纯 SQL，便于 DBA） |
 
@@ -259,7 +268,7 @@ WMS 里改了波特率等：页面再次查询并 `POST /reload`（或按 `versi
 
 ## 7. WMS 表结构与接口
 
-配置主数据落在 WMS 表 **`wms_scale_bridge_profile`**（`mac` 唯一）。装箱页经 customizedScreenManager 维护；桥接只收页面 `POST /reload` 下发的 Profile，**不直连 WMS**。
+配置主数据落在 WMS 表 **`wms_scale_bridge_profile`**（`mac` 唯一）。装箱页经 customizedScreenManager 维护；桥接启动时按 `wmsProfileUrl` **自行请求**与 `getScaleBridgeProfileByMac` 同形的接口（页面也可继续用 `/reload` 调试）。
 
 纯 DDL 文件：[`docs/wms_scale_bridge_profile.sql`](docs/wms_scale_bridge_profile.sql)（MySQL 风格，可按库改）。
 
@@ -307,9 +316,9 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 
 ### 7.2 接口：`getScaleBridgeProfileByMac`
 
-按 MAC 查询一条配置。
+按 MAC 查询一条配置。桥接侧把该能力配成 **`wmsProfileUrl`**（完整 URL），默认 **GET**，查询参数名默认 **`mac`**（`wmsMacQueryParam` 可改）；也可改方法为 POST（body 为 `{ mac: "..." }`）。
 
-**请求：** 传入规范化后的 `mac`（具体 Query/Body 形态由 WMS 现有约定即可）。
+**请求：** 传入规范化后的 `mac`（桥接使用 identity 的 `selectedMac`，形如 `XX:XX:XX:XX:XX:XX`；WMS 侧可再规范成无冒号大写再查库）。
 
 **回参约定：**
 
@@ -337,7 +346,7 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 
 - `status: 0` 表示成功；非 0 时看 `message`。
 - `data` 字段与第 3.3 节 Profile 对齐；库列 `protocol_json` 在接口里以 **`protocolJson`（字符串）** 返回。
-- **推荐**：get 时 WMS 也可额外返回已 parse 的 `protocol` 对象；若只返回 `protocolJson`，页面在 `POST /reload` 前自行 `JSON.parse(protocolJson)` 得到 `protocol`。
+- **推荐**：get 时 WMS 也可额外返回已 parse 的 `protocol` 对象；若只返回 `protocolJson`，桥接（或页面调试 `/reload` 前）会 `JSON.parse(protocolJson)` 得到 `protocol`。
 
 ### 7.3 接口：`saveScaleBridgeProfile`
 
@@ -383,21 +392,21 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 }
 ```
 
-### 7.4 与桥接 `/reload` 的字段映射（推荐）
+### 7.4 与桥接 Profile 的字段映射（推荐）
 
-页面流程：**identity → getByMac →（可选 save）→ reload → 连重量 WS**。
+**主流程（桥接自拉）：** 启动 → selectedMac → 请求 `wmsProfileUrl` → 映射 → 内部 reload → 页面连重量 WS。  
+**调试兼容：** 页面 identity → getByMac →（可选 save）→ `POST /reload` → 连重量 WS。
 
-| WMS get/save `data` | 桥接 `POST /reload` Body | 说明 |
-|---------------------|--------------------------|------|
+| WMS get/save `data` | 桥接 Profile（自拉或 `/reload` Body） | 说明 |
+|---------------------|----------------------------------------|------|
 | mac, name, enabled, portName, baudRate, dataBits, parity, stopBits, protocolId, controlBaseUrl, version | 同名字段原样 | 直接拷贝 |
 | protocolJson（string） | **protocol**（object） | **推荐**：`protocol = JSON.parse(protocolJson)`；不要把字符串塞进 protocol |
 | （若 get 已返回 protocol 对象） | protocol | 可直接用对象，无需再 parse |
 | — | paths | 可选；一般用桥接 defaults，不必从 WMS 带 |
 
-伪代码：
+桥接内部映射等价于：
 
 ```js
-const { data } = await getScaleBridgeProfileByMac(mac);
 const profile = {
   ...data,
   protocol: data.protocol
@@ -405,15 +414,11 @@ const profile = {
     : (data.protocolJson ? JSON.parse(data.protocolJson) : undefined),
 };
 delete profile.protocolJson; // 桥接侧吃 protocol 对象
-await fetch(controlBaseUrl + "/reload", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(profile),
-});
+// 自拉成功后等价调用现有 reload(profile)，并写入 last-profile.json
 ```
 
 重量通道仍为 **WebSocket 纯文本**（默认 `ws://127.0.0.1:5122`），与控制 HTTP 分离。
 
-### 7.5 可选：用 version 轮询
+### 7.5 配置刷新策略
 
-页面可定时（或切回前台时）再调 `getScaleBridgeProfileByMac`：若返回的 `version` 大于本地已 reload 的版本，则重新映射并 `POST /reload`，避免 WMS 改参后本机仍用旧串口配置。无需高频；按现场改参频率选间隔即可。
+桥接 **不做** 定时轮询刷新。WMS 改了波特率等参数后：重启电子秤服务即可重新拉取；调试时可临时 `POST /reload`。页面侧也不必为桥接做 version 轮询。

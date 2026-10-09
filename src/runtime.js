@@ -7,11 +7,12 @@ const { SerialBridge } = require('./serial');
 const { parseWeight, resolveDelimiter, knownProtocol } = require('./protocol');
 const { WeightWsServer } = require('./transportWs');
 const { ControlHttp } = require('./controlHttp');
+const { fetchProfileFromWms } = require('./wmsProfile');
 
 const LAST_PROFILE_PATH = path.join(__dirname, 'last-profile.json');
 
 /**
- * 组装启停、热 reload、状态
+ * 组装启停、启动自拉 WMS / 热 reload、状态
  */
 class Runtime {
   /**
@@ -58,6 +59,61 @@ class Runtime {
         '[scale-bridge] serialport 不可用，串口功能降级。HTTP/WS 仍可工作。',
         this.serial.loadError ? this.serial.loadError.message : ''
       );
+    }
+    // 启动后按本机 MAC 向 WMS 自拉配置（不轮询）；失败再回退 last-profile
+    await this._loadProfileOnBoot();
+  }
+
+  /**
+   * 启动加载配置：优先 WMS（defaults.wmsProfileUrl + selectedMac），失败回退 last-profile.json。
+   * 不做定时刷新。HTTP /reload 仍保留供调试。
+   */
+  async _loadProfileOnBoot() {
+    const d = this.defaults || {};
+    const wmsUrl = (d.wmsProfileUrl || '').trim();
+    if (wmsUrl) {
+      const { preferred } = listMacs();
+      const selectedMac = preferred;
+      if (!selectedMac) {
+        const msg = '未拿到本机 MAC，无法向 WMS 拉配置';
+        console.warn('[scale-bridge]', msg);
+        this.lastError = msg;
+        await this._restoreLastProfile();
+        this.lastError = msg;
+        return;
+      }
+      console.log(
+        '[scale-bridge] 向 WMS 拉取秤配置: %s  mac=%s',
+        wmsUrl,
+        selectedMac
+      );
+      try {
+        const profile = await fetchProfileFromWms({
+          url: wmsUrl,
+          method: d.wmsProfileMethod || 'GET',
+          macQueryParam: d.wmsMacQueryParam || 'mac',
+          mac: selectedMac,
+        });
+        const result = await this.reload(profile);
+        if (result && result.ok) {
+          console.log('[scale-bridge] WMS 配置已应用');
+          return;
+        }
+        const failMsg =
+          'WMS 配置应用失败: ' + ((result && result.message) || 'unknown');
+        console.warn('[scale-bridge]', failMsg);
+        this.lastError = failMsg;
+      } catch (e) {
+        const failMsg = 'WMS 拉取失败: ' + (e.message || e);
+        console.warn('[scale-bridge]', failMsg);
+        this.lastError = failMsg;
+      }
+      console.log('[scale-bridge] 回退 last-profile…');
+      const wmsErr = this.lastError;
+      await this._restoreLastProfile();
+      // 回退成功时 reload 会清空 lastError；保留 WMS 失败原因便于状态窗查看
+      if (wmsErr) this.lastError = wmsErr;
+      return;
     }
     await this._restoreLastProfile();
   }
