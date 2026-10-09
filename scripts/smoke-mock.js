@@ -72,7 +72,7 @@ function post(urlPath, obj) {
 
 async function main() {
   const rt = new Runtime(defaults);
-  rt.start();
+  await rt.start();
 
   // 等监听就绪
   await new Promise((r) => setTimeout(r, 200));

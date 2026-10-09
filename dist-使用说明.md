@@ -166,6 +166,9 @@
 ```
 
 **成功：** `{ "ok": true }`  
+
+**本地快照：** 每次成功 reload（含 `enabled:false` 关串口）会覆盖写入程序目录内的上次 Profile 快照；退出后再启动会自动按该快照等价 reload 恢复（读失败或 JSON 损坏则忽略，不影响启动）。
+
 **失败：** `{ "ok": false, "message": "缺少 portName" }`（HTTP 400）
 
 ---

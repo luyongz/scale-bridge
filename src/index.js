@@ -10,10 +10,10 @@ function loadDefaults() {
   return JSON.parse(raw);
 }
 
-function main() {
+async function main() {
   const defaults = loadDefaults();
   const runtime = new Runtime(defaults);
-  runtime.start();
+  await runtime.start();
 
   // 便于冒烟脚本：挂到 global（仅开发）
   if (process.env.SCALE_BRIDGE_EXPOSE === '1') {
@@ -32,4 +32,7 @@ function main() {
   process.on('SIGTERM', shutdown);
 }
 
-main();
+main().catch((e) => {
+  console.error('[scale-bridge] 启动失败:', e.message || e);
+  process.exit(1);
+});

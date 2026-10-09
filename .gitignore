@@ -40,3 +40,6 @@ id_ed25519*
 
 # OS
 Desktop.ini
+
+# Local last successful reload profile (runtime state)
+src/last-profile.json

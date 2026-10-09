@@ -1,10 +1,14 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { listMacs, normalizeMac } = require('./identity');
 const { SerialBridge } = require('./serial');
 const { parseWeight, resolveDelimiter, knownProtocol } = require('./protocol');
 const { WeightWsServer } = require('./transportWs');
 const { ControlHttp } = require('./controlHttp');
+
+const LAST_PROFILE_PATH = path.join(__dirname, 'last-profile.json');
 
 /**
  * 组装启停、热 reload、状态
@@ -38,7 +42,7 @@ class Runtime {
     });
   }
 
-  start() {
+  async start() {
     const d = this.defaults;
     this.ws.start(d.wsHost || '127.0.0.1', d.wsPort || 5122);
     this.http.start(d.controlHost || '127.0.0.1', d.controlPort || 5123);
@@ -54,6 +58,55 @@ class Runtime {
         '[scale-bridge] serialport 不可用，串口功能降级。HTTP/WS 仍可工作。',
         this.serial.loadError ? this.serial.loadError.message : ''
       );
+    }
+    await this._restoreLastProfile();
+  }
+
+  /**
+   * 成功 reload 后持久化当前 Profile（含 enabled:false）
+   */
+  _saveLastProfile() {
+    if (!this.profile) return;
+    try {
+      fs.writeFileSync(LAST_PROFILE_PATH, JSON.stringify(this.profile, null, 2), 'utf8');
+      console.log('[scale-bridge] 已保存 last-profile');
+    } catch (e) {
+      console.warn('[scale-bridge] 保存 last-profile 失败:', e.message || e);
+    }
+  }
+
+  /**
+   * 启动时若存在上次 Profile 则等价 reload；读失败/坏 JSON 忽略
+   */
+  async _restoreLastProfile() {
+    let raw;
+    try {
+      if (!fs.existsSync(LAST_PROFILE_PATH)) return;
+      raw = fs.readFileSync(LAST_PROFILE_PATH, 'utf8');
+    } catch (e) {
+      console.warn('[scale-bridge] 读取 last-profile 失败，已忽略:', e.message || e);
+      return;
+    }
+    let body;
+    try {
+      body = JSON.parse(raw);
+    } catch (e) {
+      console.warn('[scale-bridge] last-profile JSON 无效，已忽略:', e.message || e);
+      return;
+    }
+    console.log('[scale-bridge] 发现 last-profile，自动 reload…');
+    try {
+      const result = await this.reload(body);
+      if (result && result.ok) {
+        console.log('[scale-bridge] last-profile 已恢复');
+      } else {
+        console.warn(
+          '[scale-bridge] last-profile 恢复失败:',
+          (result && result.message) || 'unknown'
+        );
+      }
+    } catch (e) {
+      console.warn('[scale-bridge] last-profile 恢复异常，已忽略:', e.message || e);
     }
   }
 
@@ -129,6 +182,7 @@ class Runtime {
     if (body.enabled === false) {
       await this.serial.close();
       this.running = false;
+      this._saveLastProfile();
       return { ok: true };
     }
 
@@ -146,6 +200,7 @@ class Runtime {
       });
       this.running = true;
       this.lastError = null;
+      this._saveLastProfile();
       return { ok: true };
     } catch (e) {
       this.running = false;
