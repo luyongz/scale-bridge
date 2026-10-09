@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Packaged runtime (large binaries / bundled deps)
+dist/ScaleBridge/node.exe
+dist/ScaleBridge/node_modules/
+dist/ScaleBridge/*.exe
+dist/ScaleBridge/*.dll
+
+# Logs & temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+tmp/
+temp/
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Secrets / env / credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*
+*secret*
+id_rsa*
+id_ed25519*
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+Desktop.ini

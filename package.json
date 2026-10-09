@@ -1,0 +1,24 @@
+{
+  "name": "scale-bridge",
+  "version": "1.0.0",
+  "description": "称重串口桥接：串口 → WebSocket 推重量，HTTP 控制面热 reload",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "smoke-mock": "node scripts/smoke-mock.js"
+  },
+  "engines": {
+    "node": ">=10"
+  },
+  "dependencies": {
+    "ws": "^7.5.9",
+    "serialport": "^12.0.0"
+  },
+  "keywords": [
+    "scale",
+    "serial",
+    "websocket",
+    "bridge"
+  ],
+  "license": "UNLICENSED"
+}
