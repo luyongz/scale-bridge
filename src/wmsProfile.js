@@ -36,6 +36,8 @@ function mapWmsDataToProfile(data) {
  * @param {string} [opts.method='GET']
  * @param {string} [opts.macQueryParam='mac']
  * @param {string} opts.mac - 本机 MAC；请求 WMS 时统一为带冒号大写（如 D8:80:83:71:EC:85），与 /identity selectedMac 一致
+ * @param {string} [opts.basicUser] - HTTP Basic 用户名；非空时加 Authorization 头；空则不鉴权
+ * @param {string} [opts.basicPassword] - HTTP Basic 密码（可空字符串）
  * @param {number} [opts.timeoutMs=8000]
  * @returns {Promise<object>} Profile
  */
@@ -78,6 +80,16 @@ function fetchProfileFromWms(opts) {
       },
       timeout: timeoutMs,
     };
+    const basicUser = ((opts && opts.basicUser) || '').trim();
+    const basicPassword =
+      opts && opts.basicPassword != null ? String(opts.basicPassword) : '';
+    if (basicUser) {
+      // Node Buffer base64，兼容旧 Node（不用 btoa）
+      const token = Buffer.from(basicUser + ':' + basicPassword, 'utf8').toString(
+        'base64'
+      );
+      reqOpts.headers.Authorization = 'Basic ' + token;
+    }
     if (bodyForPost) {
       reqOpts.headers['Content-Type'] = 'application/json';
       reqOpts.headers['Content-Length'] = Buffer.byteLength(bodyForPost);

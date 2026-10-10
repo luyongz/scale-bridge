@@ -36,6 +36,7 @@ HTTP `/reload` 仍保留，仅作调试/兼容，前端可不依赖。
 | **向WMS查询秤配置的地址** | `wmsProfileUrl` | 空（空则不调 WMS，只用本地缓存） |
 | 向WMS查询的请求方法 | `wmsProfileMethod` | `GET` |
 | 传MAC的参数名 | `wmsMacQueryParam` | `mac` |
+| WMS Basic 用户名 / 密码 | `wmsBasicUser` / `wmsBasicPassword` | 空（用户名非空时请求带 HTTP Basic；密码明文存本机 `defaults.json`，勿把真实账号提交到公开仓） |
 
 点 **「保存并重启服务」**：写入同目录 `src/defaults.json` → 结束旧 node → 再拉起（启动时会用本机 MAC 请求上述 WMS 地址）→ 状态刷新改用新 base/paths。  
 也可手改 `defaults.json` 后点该按钮，或退出再开 exe。
@@ -316,7 +317,7 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 
 ### 7.2 接口：`getScaleBridgeProfileByMac`
 
-按 MAC 查询一条配置。桥接侧把该能力配成 **`wmsProfileUrl`**（完整 URL），默认 **GET**，查询参数名默认 **`mac`**（`wmsMacQueryParam` 可改）；也可改方法为 POST（body 为 `{ mac: "..." }`）。
+按 MAC 查询一条配置。桥接侧把该能力配成 **`wmsProfileUrl`**（完整 URL），默认 **GET**，查询参数名默认 **`mac`**（`wmsMacQueryParam` 可改）；也可改方法为 POST（body 为 `{ mac: "..." }`）。若配置了 **`wmsBasicUser`**（非空），请求会带 `Authorization: Basic …`（`wmsBasicPassword` 可空）；默认均为空表示不鉴权。密码仅存本机 `defaults.json` 明文，请勿把含真实口令的文件提交到公开仓库。
 
 **请求：** `mac` **必须带冒号大写**（如 `D8:80:83:71:EC:85`）。桥接使用 identity 的 `selectedMac`（已由 `normalizeMac` 格式化为该形式）作为查询参数或 POST body；不要传无冒号形式（如 `D8808371EC85`）。WMS 查库时可自行兼容无冒号历史数据。
 

@@ -96,6 +96,8 @@ class Runtime {
           method: d.wmsProfileMethod || 'GET',
           macQueryParam: d.wmsMacQueryParam || 'mac',
           mac: selectedMac,
+          basicUser: d.wmsBasicUser || '',
+          basicPassword: d.wmsBasicPassword != null ? d.wmsBasicPassword : '',
         });
         const result = await this.reload(profile, 'wms');
         if (result && result.ok) {

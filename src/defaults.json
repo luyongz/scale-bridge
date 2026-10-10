@@ -6,6 +6,8 @@
   "wmsProfileUrl": "",
   "wmsProfileMethod": "GET",
   "wmsMacQueryParam": "mac",
+  "wmsBasicUser": "",
+  "wmsBasicPassword": "",
   "paths": {
     "identity": "/identity",
     "status": "/status",

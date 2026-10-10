@@ -20,7 +20,7 @@
 源码：`launcher/StatusForm.cs` → 发布产物 `dist/ScaleBridge/电子秤服务.exe`（副本 `ScaleBridge.exe`）。
 
 - 状态窗标题「电子秤服务」：MAC / 串口 / WS 客户端 / 重量 / 错误
-- 配置区可改页面请求地址、四条 HTTP 路径、网页接收重量地址/端口、**向WMS查询秤配置的地址**等；「保存并重启服务」写入同目录 `src/defaults.json` 后杀旧 node 再拉起
+- 配置区可改页面请求地址、四条 HTTP 路径、网页接收重量地址/端口、**向WMS查询秤配置的地址** / Basic 用户名密码等；「保存并重启服务」写入同目录 `src/defaults.json` 后杀旧 node 再拉起
 - 编译说明见 `launcher/README.md`；现场用法见 `使用说明.md`
 
 ## 开发启动
@@ -42,7 +42,7 @@ npm run smoke-mock
 
 ## 与 WMS / 装箱页配合
 
-1. 在状态窗或 `src/defaults.json` 配置 `wmsProfileUrl`（及可选 `wmsProfileMethod` / `wmsMacQueryParam`）
+1. 在状态窗或 `src/defaults.json` 配置 `wmsProfileUrl`（及可选 `wmsProfileMethod` / `wmsMacQueryParam`；需要时填 `wmsBasicUser` / `wmsBasicPassword`，用户名非空则 HTTP Basic）
 2. 启动服务：自动用本机 `selectedMac` 请求该地址 → 应用配置（失败回退 `last-profile.json`）
 3. 页面连接 `ws://127.0.0.1:5122` 收重量；**无需**再调 `/reload`（接口仍保留调试）
 4. 改 WMS 参数后重启本服务即可；不做定时轮询
