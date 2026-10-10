@@ -83,6 +83,7 @@ class Runtime {
         this.lastError = msg;
         await this._restoreLastProfile();
         this.lastError = msg;
+        this._overrideProfileMacWithLocal();
         return;
       }
       console.log(
@@ -118,6 +119,8 @@ class Runtime {
       await this._restoreLastProfile();
       // 回退成功时 reload 会清空 lastError；保留 WMS 失败原因便于状态窗查看
       if (wmsErr) this.lastError = wmsErr;
+      // 拉取失败回退 cache 后：本机网卡展示必须覆盖为当前机 MAC（其它配置仍用 last-profile）
+      this._overrideProfileMacWithLocal();
       return;
     }
     await this._restoreLastProfile();
@@ -178,17 +181,44 @@ class Runtime {
     this.running = false;
   }
 
-  getIdentity() {
-    const { macs, preferred } = listMacs();
-    let selectedMac = preferred;
-    if (this.profile && this.profile.mac) {
-      selectedMac = normalizeMac(this.profile.mac) || this.profile.mac;
+  /**
+   * 本机 preferred MAC（始终当前机，不读 profile.mac）
+   * @returns {string|null}
+   */
+  _localSelectedMac() {
+    const { preferred } = listMacs();
+    return normalizeMac(preferred) || preferred || null;
+  }
+
+  /**
+   * WMS 拉取失败回退后：用当前机 MAC 覆盖 profile.mac，便于 status/窗体核对。
+   * 不改其它配置字段；也不强制写回 last-profile 文件。
+   */
+  _overrideProfileMacWithLocal() {
+    if (!this.profile) return;
+    const local = this._localSelectedMac();
+    if (!local) return;
+    const prev = this.profile.mac || null;
+    this.profile.mac = local;
+    if (prev && prev !== local) {
+      console.log(
+        '[scale-bridge] 回退后本机网卡覆盖: %s → %s',
+        prev,
+        local
+      );
     }
+  }
+
+  getIdentity() {
+    const { macs } = listMacs();
+    // selectedMac 始终为本机网卡，避免 cache profile 里别人的 mac 污染「本机网卡」展示
+    const selectedMac = this._localSelectedMac();
     return { selectedMac, macs };
   }
 
   getStatus() {
     const p = this.profile;
+    const selectedMac = this._localSelectedMac();
     const profileSummary = p
       ? {
           name: p.name != null && p.name !== '' ? p.name : null,
@@ -206,6 +236,8 @@ class Runtime {
       running: this.running,
       serialOpen: this.serial.isOpen,
       wsClients: this.ws.clientCount,
+      // selectedMac：始终当前机；mac：配置绑定（回退失败路径会被覆盖为本机）
+      selectedMac,
       mac: p && p.mac ? p.mac : null,
       profileVersion: p && p.version != null ? p.version : null,
       lastWeight: this.lastWeight,
