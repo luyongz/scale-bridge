@@ -78,7 +78,7 @@ HTTP `/reload` 仍保留，仅作调试/兼容，前端可不依赖。
   "running": true,
   "serialOpen": true,
   "wsClients": 1,
-  "mac": "D8808371EC85",
+  "mac": "D8:80:83:71:EC:85",
   "profileVersion": 3,
   "lastWeight": 36.2,
   "lastError": null
@@ -118,7 +118,7 @@ HTTP `/reload` 仍保留，仅作调试/兼容，前端可不依赖。
 | parity | 否 | string | `none` / `even` / `odd`，默认 `none` |
 | stopBits | 否 | number | 默认 `1` |
 | protocol | 否 | object | 协议参数，见下表（桥接侧为 object，非 JSON 字符串） |
-| mac | 否 | string | 本机 MAC，建议带上 |
+| mac | 否 | string | 本机 MAC，建议带上；格式为带冒号大写（如 `D8:80:83:71:EC:85`） |
 | name | 否 | string | 工位名 |
 | enabled | 否 | boolean | `false` 时关闭串口 |
 | version | 否 | number | 版本号，便于页面对比是否变更 |
@@ -154,7 +154,7 @@ HTTP `/reload` 仍保留，仅作调试/兼容，前端可不依赖。
 
 ```json
 {
-  "mac": "D8808371EC85",
+  "mac": "D8:80:83:71:EC:85",
   "name": "包装工位-01",
   "enabled": true,
   "portName": "COM8",
@@ -228,7 +228,7 @@ ws.onmessage = (e) => {
     ↓
 桥接枚举本机 MAC（selectedMac）
     ↓
-桥接 GET/POST wmsProfileUrl?mac=... → 解析 data / protocolJson → 内部 reload
+桥接 GET/POST wmsProfileUrl?mac=D8:80:83:71:EC:85（必须带冒号）→ 解析 data / protocolJson → 内部 reload
     ↓（失败则回退 last-profile.json，不崩）
 页面连 ws://127.0.0.1:5122 显示 electronicWeigh
     ↓
@@ -277,7 +277,7 @@ ws.onmessage = (e) => {
 | 列名（库） | JSON / Java 驼峰 | 说明 |
 |------------|------------------|------|
 | id | id | 主键，bigint 自增（按库习惯即可） |
-| mac | mac | 唯一；建议存**无冒号大写**（如 `D8808371EC85`），查询前对 identity 返回值做同样规范化 |
+| mac | mac | 唯一；建议存**带冒号大写**（如 `D8:80:83:71:EC:85`），与 `/identity` 的 `selectedMac` 一致；库内若仍有无冒号历史数据可并存，但 **HTTP 查询参数 / body 的 mac 必须带冒号** |
 | name | name | 工位名 |
 | enabled | enabled | 是否启用 |
 | port_name | portName | 串口名，必填 |
@@ -295,7 +295,7 @@ ws.onmessage = (e) => {
 -- 完整脚本见 docs/wms_scale_bridge_profile.sql；以下为等价摘要
 CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
   id                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
-  mac               VARCHAR(32)  NOT NULL COMMENT 'MAC，唯一；建议无冒号大写',
+  mac               VARCHAR(32)  NOT NULL COMMENT 'MAC，唯一；建议存带冒号大写，与 identity 一致',
   name              VARCHAR(128) NULL     COMMENT '工位/配置名称',
   enabled           TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否启用',
   port_name         VARCHAR(64)  NOT NULL COMMENT '串口名 → portName',
@@ -318,7 +318,7 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 
 按 MAC 查询一条配置。桥接侧把该能力配成 **`wmsProfileUrl`**（完整 URL），默认 **GET**，查询参数名默认 **`mac`**（`wmsMacQueryParam` 可改）；也可改方法为 POST（body 为 `{ mac: "..." }`）。
 
-**请求：** 传入规范化后的 `mac`（桥接使用 identity 的 `selectedMac`，形如 `XX:XX:XX:XX:XX:XX`；WMS 侧可再规范成无冒号大写再查库）。
+**请求：** `mac` **必须带冒号大写**（如 `D8:80:83:71:EC:85`）。桥接使用 identity 的 `selectedMac`（已由 `normalizeMac` 格式化为该形式）作为查询参数或 POST body；不要传无冒号形式（如 `D8808371EC85`）。WMS 查库时可自行兼容无冒号历史数据。
 
 **回参约定：**
 
@@ -326,7 +326,7 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 {
   "status": 0,
   "data": {
-    "mac": "D8808371EC85",
+    "mac": "D8:80:83:71:EC:85",
     "name": "包装工位-01",
     "portName": "COM8",
     "baudRate": 9600,
@@ -356,7 +356,7 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 
 ```json
 {
-  "mac": "D8808371EC85",
+  "mac": "D8:80:83:71:EC:85",
   "name": "包装工位-01",
   "enabled": true,
   "portName": "COM8",
@@ -376,7 +376,7 @@ CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
 {
   "status": 0,
   "data": {
-    "mac": "D8808371EC85",
+    "mac": "D8:80:83:71:EC:85",
     "name": "包装工位-01",
     "portName": "COM8",
     "baudRate": 9600,

@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS wms_scale_bridge_profile (
   id                BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
-  mac               VARCHAR(32)  NOT NULL COMMENT '本机网卡 MAC，唯一；建议规范化为无冒号大写，如 D8808371EC85',
+  mac               VARCHAR(32)  NOT NULL COMMENT '本机网卡 MAC，唯一；建议存带冒号大写（如 D8:80:83:71:EC:85），与 identity selectedMac 一致；库内可与无冒号历史数据并存，但接口传参必须带冒号',
   name              VARCHAR(128) NULL     COMMENT '工位/配置名称',
   enabled           TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否启用：1启用 0关闭串口',
   port_name         VARCHAR(64)  NOT NULL COMMENT '串口名，如 COM8 → JSON portName',

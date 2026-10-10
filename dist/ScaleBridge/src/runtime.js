@@ -73,7 +73,8 @@ class Runtime {
     const wmsUrl = (d.wmsProfileUrl || '').trim();
     if (wmsUrl) {
       const { preferred } = listMacs();
-      const selectedMac = preferred;
+      // listMacs 已 normalize 为带冒号大写；再过一遍保证传 WMS 格式
+      const selectedMac = normalizeMac(preferred) || preferred;
       if (!selectedMac) {
         const msg = '未拿到本机 MAC，无法向 WMS 拉配置';
         console.warn('[scale-bridge]', msg);

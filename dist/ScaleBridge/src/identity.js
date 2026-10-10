@@ -3,7 +3,8 @@
 const os = require('os');
 
 /**
- * 规范化 MAC：去分隔符、转大写；已是 12 位十六进制则按 XX:XX:... 格式化
+ * 规范化 MAC：去分隔符、转大写后按 XX:XX:XX:XX:XX:XX（带冒号大写）格式化。
+ * 与 /identity selectedMac 及向 WMS 传参格式一致；禁止输出无冒号形式。
  * @param {string} raw
  * @returns {string|null}
  */

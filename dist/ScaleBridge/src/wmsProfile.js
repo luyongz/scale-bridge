@@ -3,6 +3,7 @@
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const { normalizeMac } = require('./identity');
 
 /**
  * 将 WMS getScaleBridgeProfileByMac 的 data 映射为桥接 Profile
@@ -34,7 +35,7 @@ function mapWmsDataToProfile(data) {
  * @param {string} opts.url - wmsProfileUrl（完整接口地址，不含 mac 查询串亦可）
  * @param {string} [opts.method='GET']
  * @param {string} [opts.macQueryParam='mac']
- * @param {string} opts.mac - 已规范化的 MAC
+ * @param {string} opts.mac - 本机 MAC；请求 WMS 时统一为带冒号大写（如 D8:80:83:71:EC:85），与 /identity selectedMac 一致
  * @param {number} [opts.timeoutMs=8000]
  * @returns {Promise<object>} Profile
  */
@@ -43,8 +44,9 @@ function fetchProfileFromWms(opts) {
   if (!urlStr || typeof urlStr !== 'string' || !urlStr.trim()) {
     return Promise.reject(new Error('未配置 wmsProfileUrl'));
   }
-  const mac = opts.mac;
+  const mac = normalizeMac(opts.mac) || (opts.mac && String(opts.mac).trim()) || null;
   if (!mac) return Promise.reject(new Error('缺少 mac'));
+  // 向 WMS 传参必须带冒号大写（与 identity.selectedMac 一致）；禁止无冒号形式
 
   const method = ((opts.method || 'GET') + '').toUpperCase();
   const macParam = opts.macQueryParam || 'mac';
