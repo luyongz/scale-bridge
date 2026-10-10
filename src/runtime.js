@@ -25,6 +25,8 @@ class Runtime {
     this.lastWeight = null;
     this.lastError = null;
     this.running = false; // 有有效 profile 且试图跑串口
+    /** @type {null|'wms'|'cache'|'reload'} 配置来源 */
+    this.profileSource = null;
 
     this.serial = new SerialBridge();
     this.ws = new WeightWsServer();
@@ -32,7 +34,7 @@ class Runtime {
       getPaths: () => this.paths,
       onIdentity: () => this.getIdentity(),
       onStatus: () => this.getStatus(),
-      onReload: (body) => this.reload(body),
+      onReload: (body) => this.reload(body, 'reload'),
       onTrialRead: (body) => this.trialRead(body),
     });
 
@@ -95,7 +97,7 @@ class Runtime {
           macQueryParam: d.wmsMacQueryParam || 'mac',
           mac: selectedMac,
         });
-        const result = await this.reload(profile);
+        const result = await this.reload(profile, 'wms');
         if (result && result.ok) {
           console.log('[scale-bridge] WMS 配置已应用');
           return;
@@ -153,7 +155,7 @@ class Runtime {
     }
     console.log('[scale-bridge] 发现 last-profile，自动 reload…');
     try {
-      const result = await this.reload(body);
+      const result = await this.reload(body, 'cache');
       if (result && result.ok) {
         console.log('[scale-bridge] last-profile 已恢复');
       } else {
@@ -184,14 +186,30 @@ class Runtime {
   }
 
   getStatus() {
+    const p = this.profile;
+    const profileSummary = p
+      ? {
+          name: p.name != null && p.name !== '' ? p.name : null,
+          portName: p.portName || null,
+          baudRate: p.baudRate != null ? p.baudRate : null,
+          dataBits: p.dataBits != null ? p.dataBits : null,
+          parity: p.parity || null,
+          stopBits: p.stopBits != null ? p.stopBits : null,
+          protocolId: p.protocolId || null,
+          version: p.version != null ? p.version : null,
+          enabled: p.enabled !== false,
+        }
+      : null;
     return {
       running: this.running,
       serialOpen: this.serial.isOpen,
       wsClients: this.ws.clientCount,
-      mac: this.profile && this.profile.mac ? this.profile.mac : null,
-      profileVersion: this.profile && this.profile.version != null ? this.profile.version : null,
+      mac: p && p.mac ? p.mac : null,
+      profileVersion: p && p.version != null ? p.version : null,
       lastWeight: this.lastWeight,
       lastError: this.lastError,
+      profileSource: this.profileSource,
+      profile: profileSummary,
     };
   }
 
@@ -225,9 +243,15 @@ class Runtime {
     }
   }
 
-  async reload(body) {
+  /**
+   * @param {object} body Profile
+   * @param {'wms'|'cache'|'reload'} [source='reload'] 配置来源
+   */
+  async reload(body, source) {
     const err = this._validateProfile(body);
     if (err) return { ok: false, message: err };
+
+    const src = source === 'wms' || source === 'cache' || source === 'reload' ? source : 'reload';
 
     this._applyPathsFromProfile(body);
     this.profile = Object.assign({}, body);
@@ -239,6 +263,7 @@ class Runtime {
     if (body.enabled === false) {
       await this.serial.close();
       this.running = false;
+      this.profileSource = src;
       this._saveLastProfile();
       return { ok: true };
     }
@@ -257,11 +282,14 @@ class Runtime {
       });
       this.running = true;
       this.lastError = null;
+      this.profileSource = src;
       this._saveLastProfile();
       return { ok: true };
     } catch (e) {
       this.running = false;
       this.lastError = e.message || String(e);
+      // 校验已通过：即使串口失败也记下配置来源，便于状态窗核对
+      this.profileSource = src;
       // 无串口环境：不崩溃，返回明确错误
       return { ok: false, message: this.lastError };
     }
